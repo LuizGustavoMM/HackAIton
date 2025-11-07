@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DataVince AI</title>
+    
+    <style>
+        /* Configurações globais para tela cheia */
+        body, html {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Impede o scroll da página principal */
+            color: #333;
+        }
+
+        /* Container principal do chat (agora em tela cheia) */
+        #chat-container {
+            width: 100vw; /* 100% da largura da tela */
+            height: 100vh; /* 100% da altura da tela */
+            overflow: hidden; /* Impede que o container tenha scroll */
+            background-color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            /* Removemos max-width, height: 80vh, border-radius, box-shadow, border */
+        }
+
+        /* Cabeçalho "Aba" de identificação */
+        #chat-header {
+            background-color: #008060; /* Verde */
+            color: white;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+            text-align: center;
+            flex-shrink: 0; /* Impede que o cabeçalho encolha */
+        }
+
+        /* Janela onde as mensagens aparecem */
+        #chat-window {
+            flex-grow: 1; /* Faz esta área ocupar todo o espaço restante */
+            padding: 20px;
+            overflow-y: auto; /* Adiciona scroll APENAS aqui */
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background-color: #FFF5EE; /* Fundo Salmão Suave */
+        }
+
+        /* Estilo base para todas as mensagens */
+        .message {
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 75%;
+            line-height: 1.4;
+            box-sizing: border-box;
+            word-wrap: break-word;
+        }
+
+        /* Mensagens do Usuário (à direita) */
+        .user-message {
+            background-color: #ffffff; 
+            color: #333;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+            border: 1px solid #eee;
+        }
+
+        /* Mensagens do Agente (à esquerda) */
+        .agent-message {
+            background-color: #008060; /* Verde */
+            color: #ffffff;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        /* Container da área de input */
+        #input-container {
+            border-top: 1px solid #ddd;
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            background-color: #ffffff;
+            flex-shrink: 0; /* Impede que a barra de input encolha */
+        }
+
+        /* Campo de texto para digitar */
+        #chat-input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 10px 15px;
+            font-size: 16px;
+            background-color: #ffffff;
+            color: #333;
+        }
+
+        #chat-input::placeholder {
+            color: #999;
+        }
+
+        /* Botão de enviar */
+        #send-button {
+            border: none;
+            background-color: #008060; /* Verde */
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        #send-button:hover {
+            background-color: #005a43;
+        }
+
+        /* Estilização da barra de rolagem */
+        #chat-window::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat-window::-webkit-scrollbar-track {
+            background: #FFF5EE;
+        }
+        #chat-window::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+        #chat-window::-webkit-scrollbar-thumb:hover {
+            background: #bbb;
+        }
+    </style>
+    </head>
+<body>
+    
+    <div id="chat-container">
+        
+        <div id="chat-header">
+            DataVinci AI
+        </div>
+        
+        <div id="chat-window">
+            <div class="message agent-message">
+                Olá! Sou seu agente consultivo. Minha base de conhecimento engloba apenas os produtos e cursos da Intelbras relacionados à **segurança eletrônica (CFTV, alarmes) e redes**. Como posso ajudá-lo hoje?
+            </div>
+        </div>
+
+        <div id="input-container">
+            <input type="text" id="chat-input" placeholder="Digite sua pergunta...">
+            <button id="send-button">Enviar</button>
+        </div>
+    </div>
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+
+        // Endereço do seu backend Python
+        const API_URL = 'http://localhost:5000/api/ask';
+
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function sendMessage() {
+            const userText = chatInput.value.trim();
+            if (userText === "") return;
+
+            displayMessage(userText, 'user');
+            chatInput.value = '';
+            
+            // Chame a função assíncrona da API
+            getAgentResponse(userText);
+        }
+
+        function displayMessage(text, sender) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.classList.add(sender + '-message');
+            messageElement.innerText = text;
+
+            chatWindow.appendChild(messageElement);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            return messageElement;
+        }
+
+        // --- FUNÇÃO ATUALIZADA ---
+        // Esta é a nova função que chama sua API
+        async function getAgentResponse(userText) {
+            // 1. Mostra a mensagem de "Pensando..."
+            const thinkingMessage = displayMessage("Consultando base de dados Intelbras...", 'agent');
+            sendButton.disabled = true; // Desabilita o botão
+            chatInput.disabled = true;  // Desabilita o input
+
+            try {
+                // 2. Faz a chamada (fetch) para a API
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        question: userText 
+                    })
+                });
+
+                if (!response.ok) {
+                    // Se o servidor der erro (ex: 500)
+                    throw new Error(`Erro na API: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // 3. Remove o "Pensando..."
+                thinkingMessage.remove();
+                
+                // 4. Mostra a resposta real vinda do LLM
+                displayMessage(data.answer, 'agent');
+
+            } catch (error) {
+                // Em caso de erro (ex: servidor Python caiu)
+                thinkingMessage.remove();
+                displayMessage(`Ops! Ocorreu um erro ao conectar com o agente. Tente novamente. (Erro: ${error.message})`, 'agent');
+                console.error("Erro ao chamar a API:", error);
+            } finally {
+                // Re-abilita o input e o botão
+                sendButton.disabled = false;
+                chatInput.disabled = false;
+                chatInput.focus(); // Coloca o foco de volta no input
+            }
+        }
+    </script>
+    </body>
+</html>
+
